@@ -39,6 +39,11 @@ function AppRoutes() {
     )
   }
 
+  // Kirdi, lekin bazada profili yo'q — jim qaytib ketmasin, sababini ko'rsatamiz
+  if (user && !profile) {
+    return <WrongRole message="Email va parol to'g'ri, lekin bu hisobning profili bazada topilmadi. Admin hisobini yaratuvchi SQL (admin_yaratish.sql) ni qayta ishga tushiring." />
+  }
+
   if (!user || !profile) {
     return (
       <Routes>

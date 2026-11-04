@@ -40,6 +40,8 @@ export function AuthProvider({ children }) {
         if (session?.user) {
           setUser(session.user)
           const userId = session.user.id
+          // Yangi kirishda profil yuklanguncha "Yuklanmoqda..." ko'rsatamiz
+          if (_event === 'SIGNED_IN') setLoading(true)
           setTimeout(() => {
             loadProfile(userId).finally(() => setLoading(false))
           }, 0)
@@ -54,17 +56,16 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [loadProfile])
 
+  // DIQQAT: bu yerda setLoading(true) qilmaymiz — aks holda kirish sahifasi yopilib,
+  // yozilgan email/parol va xato xabari yo'qolib qoladi.
   const signIn = async (email, password) => {
     setError(null)
-    setLoading(true)
     try {
       const data = await authFunctions.signIn(email, password)
       return data
     } catch (err) {
       setError(err.message)
       throw err
-    } finally {
-      setLoading(false)
     }
   }
 
