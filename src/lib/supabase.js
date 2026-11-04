@@ -1,8 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
 // ─── Supabase Client ──────────────────────────────────────────────────────────
-const supabaseUrl  = import.meta.env.VITE_SUPABASE_URL
-const supabaseKey  = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+// Kalitni nusxalaganda tushib qolgan ko'rinmas belgilar, bo'sh joy, qo'shtirnoqni olib tashlaymiz
+// (aks holda: "String contains non ISO-8859-1 code point" xatosi)
+const clean = (v) => (v || '').replace(/[^\x21-\x7E]/g, '').replace(/^["']+|["']+$/g, '')
+const supabaseUrl  = clean(import.meta.env.VITE_SUPABASE_URL)
+const supabaseKey  = clean(import.meta.env.VITE_SUPABASE_ANON_KEY) || clean(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY)
 
 if (!supabaseUrl || !supabaseKey) {
   console.error('❌ VITE_SUPABASE_URL yoki VITE_SUPABASE_ANON_KEY env topilmadi!')
