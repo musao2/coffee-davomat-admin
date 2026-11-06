@@ -49,7 +49,11 @@ async function loadMonthSummary(employeeId, monthKey) {
   const sessions = sess.data || []
   const rate = (rates.data || []).find(r => r.effective_from <= `${monthKey}-${pad2(last)}` && (!r.effective_to || r.effective_to > `${monthKey}-01`))
   const monthly = rate?.salary_type === 'monthly'
-  const earned  = monthly ? num(rate.monthly_salary) : sessions.reduce((t, x) => t + num(x.earned_amount), 0)
+  // Sotuv bonusi (025_sales.sql hali ishga tushmagan bo'lsa — 0)
+  const salesRes = await supabase.from('sales_reports').select('bonus_amount').eq('employee_id', employeeId)
+    .gte('day', `${monthKey}-01`).lte('day', `${monthKey}-${pad2(last)}`)
+  const sales = salesRes.error ? 0 : (salesRes.data || []).reduce((t, x) => t + num(x.bonus_amount), 0)
+  const earned  = (monthly ? num(rate.monthly_salary) : sessions.reduce((t, x) => t + num(x.earned_amount), 0)) + sales
   const advance = (adv.data || []).reduce((t, x) => t + num(x.amount), 0)
   const bonus   = adj.filter(a => a.type === 'bonus').reduce((t, a) => t + num(a.amount), 0)
   const fine    = adj.filter(a => a.type === 'deduction').reduce((t, a) => t + num(a.amount), 0)

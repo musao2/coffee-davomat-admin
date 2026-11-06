@@ -2,7 +2,7 @@
 // Xodim telefon kamerasi bilan skanerlasa — xodimlar saytining /scan sahifasi ochiladi.
 export const USER_APP_URL = (import.meta.env.VITE_USER_APP_URL && import.meta.env.VITE_USER_APP_URL !== 'auto'
   ? import.meta.env.VITE_USER_APP_URL
-  : 'https://fritto-user.vercel.app'
+  : 'https://coffee-davomat-user.vercel.app'
 ).replace(/\/$/, '')
 
 export const branchQrUrl = (code) => `${USER_APP_URL}/scan?b=${code}`

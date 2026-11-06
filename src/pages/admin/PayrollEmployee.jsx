@@ -3,6 +3,8 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { LuArrowLeft, LuChevronLeft, LuChevronRight, LuReceipt, LuPencil } from 'react-icons/lu'
 import { useAuth } from '../../context/AuthContext'
 import DayEditor from '../../components/admin/DayEditor'
+import SalesReportsCard from '../../components/admin/SalesReportsCard'
+import { getSalesReports } from '../../lib/sales'
 import {
   supabase, employeeFunctions, attendanceFunctions, payrollFunctions,
   formatMoney,
@@ -57,7 +59,7 @@ export default function AdminPayrollEmployee() {
         const to   = `${year}-${pad(month)}-${pad(lastDay)}T23:59:59+05:00`
 
         const period = await payrollFunctions.getOrCreatePeriod(year, month)
-        const [employee, sessions, items, advRes, adjRes] = await Promise.all([
+        const [employee, sessions, items, advRes, adjRes, salesReports] = await Promise.all([
           employeeFunctions.getById(employeeId),
           attendanceFunctions.getByEmployee(employeeId, { from, to }),
           payrollFunctions.getItems(period.id, employeeId),
@@ -65,12 +67,16 @@ export default function AdminPayrollEmployee() {
             .gte('created_at', from).lte('created_at', to).order('created_at', { ascending: false }),
           supabase.from('payroll_adjustments').select('*').eq('employee_id', employeeId)
             .eq('period_id', period.id).order('created_at', { ascending: false }),
+          getSalesReports(employeeId, `${year}-${pad(month)}-01`, `${year}-${pad(month)}-${pad(lastDay)}`),
         ])
         if (!alive) return
+        const foundItem = (items || []).find(i => i.employee_id === employeeId) || null
+        const salesBonus = salesReports.reduce((t, r) => t + (Number(r.bonus_amount) || 0), 0)
         setData({
           employee,
           sessions,
-          item: (items || []).find(i => i.employee_id === employeeId) || null,
+          salesReports,
+          item: foundItem ? { ...foundItem, sales_bonus: salesBonus } : null,
           advances: advRes.data || [],
           adjustments: adjRes.data || [],
         })
@@ -83,6 +89,18 @@ export default function AdminPayrollEmployee() {
     load()
     return () => { alive = false }
   }, [employeeId, year, month, reload])
+
+  // Sotuv tuzatilgach — oylikni qayta hisoblab, sahifani yangilaymiz
+  const recalc = async () => {
+    try {
+      const period = await payrollFunctions.getOrCreatePeriod(year, month)
+      const last = new Date(year, month, 0).getDate()
+      await payrollFunctions.calculateForEmployee(employeeId, period.id, `${year}-${pad(month)}-01T00:00:00`, `${year}-${pad(month)}-${last}T23:59:59`)
+    } catch (e) {
+      console.warn('Oylikni qayta hisoblashda xato:', e)
+    }
+    setReload(x => x + 1)
+  }
 
   const goMonth = (delta) => {
     const d = new Date(year, month - 1 + delta, 1)
@@ -282,6 +300,14 @@ export default function AdminPayrollEmployee() {
                   ? <SalaryBreakdown item={item} />
                   : <p className="text-sm text-slate-500">Bu oy uchun hali hisob qilinmagan. Ish haqi sahifasida «Qayta hisoblash» ni bosing.</p>}
               </div>
+
+              <SalesReportsCard
+                employee={emp}
+                reports={data.salesReports}
+                year={year}
+                month={month}
+                onChanged={recalc}
+              />
 
               <ListCard
                 title="Avanslar"

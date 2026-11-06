@@ -10,6 +10,8 @@ import {
 import { useAuth } from '../../context/AuthContext'
 import { useBranch } from '../../context/BranchContext'
 import EmployeeAccess from '../../components/admin/EmployeeAccess'
+import SalesSettingsEditor from '../../components/admin/SalesSettingsEditor'
+import { EMPTY_SALES, loadSalesSettings, saveSalesSettings, salesLabel } from '../../lib/sales'
 
 const STATUS_LABELS = {
   trial:    { label: 'Sinovda',     cls: 'badge-yellow' },
@@ -86,6 +88,8 @@ export default function AdminEmployees() {
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
   const [rateHistory, setRateHistory] = useState([])
+  const [sales, setSales] = useState(EMPTY_SALES) // sotuv bonusi sozlamasi
+  const [salesOrig, setSalesOrig] = useState('')
   // Ishdan bo'shatish / sinovga qo'yish / doimiy qilish oynasi
   const [action, setAction]           = useState(null) // { type: 'fire' | 'trial' | 'confirm', emp }
   const [actionReason, setActionReason] = useState('')
@@ -120,6 +124,8 @@ export default function AdminEmployees() {
     // Tepada filial tanlangan bo'lsa — yangi xodim shu filialga qo'shiladi
     const preset = branchList.find(b => b.id === selectedBranchId) || branchList.find(b => b.is_active) || null
     setForm({ ...EMPTY_FORM, branch_id: preset?.id || '', branch: preset?.name || EMPTY_FORM.branch })
+    setSales(EMPTY_SALES)
+    setSalesOrig(JSON.stringify(EMPTY_SALES))
     setFormError('')
     setShowModal(true)
   }
@@ -177,6 +183,11 @@ export default function AdminEmployees() {
     })
     setSelectedEmployee(emp)
     setFormError('')
+    setSales(EMPTY_SALES)
+    setSalesOrig(JSON.stringify(EMPTY_SALES))
+    loadSalesSettings(emp)
+      .then(v => { setSales(v); setSalesOrig(JSON.stringify(v)) })
+      .catch(err => console.warn('Sotuv sozlamasi yuklanmadi:', err))
     setShowModal(true)
   }
 
@@ -280,6 +291,11 @@ export default function AdminEmployees() {
 
         // Jadvalni yangilash
         await scheduleFunctions.upsert(selectedEmployee.id, schedulesToSave)
+
+        // Sotuv bonusi (o'zgargan bo'lsa)
+        if (!sales.missing && JSON.stringify(sales) !== salesOrig) {
+          await saveSalesSettings(selectedEmployee.id, sales)
+        }
       } else {
         // Yangi xodim qo'shish
         if (!form.email || !form.password) {
@@ -344,6 +360,11 @@ export default function AdminEmployees() {
 
         // Jadval belgilash
         await scheduleFunctions.upsert(newEmp.id, schedulesToSave)
+
+        // Sotuv bonusi
+        if (sales.mode && !sales.missing) {
+          await saveSalesSettings(newEmp.id, sales)
+        }
 
         // Agar admin test rejimini tanlagan bo'lsa, test rejimi yaratish
         if (isTrial) {
@@ -642,6 +663,9 @@ export default function AdminEmployees() {
                       Ixtiyoriy. Maosh yozilsa — xodim o'z oyligini ilovada ko'radi. Bo'sh qoldirilsa — xodim faqat ishlagan vaqtini ko'radi, chek o'rnida "Ish haqingizni admin hisoblab aytadi" yozuvi chiqadi.
                     </p>
                     <SalaryVisibilitySwitch checked={form.show_salary} onChange={v => setForm({ ...form, show_salary: v })} />
+                    <div className="pt-3 border-t border-slate-100">
+                      <SalesSettingsEditor value={sales} onChange={setSales} missing={sales.missing} />
+                    </div>
                   </div>
                 </FormSection>
 
@@ -832,6 +856,7 @@ export default function AdminEmployees() {
                       <InfoRow label="Ishga kirgan" value={formatTashkentDate(emp.hire_date)} />
                       <InfoRow label="Doimiy qilingan" value={emp.confirmed_at ? formatTashkentDate(emp.confirmed_at) : '—'} />
                       <InfoRow label={isMonthlyRate(currentRate) ? 'Oylik maosh' : 'Bir soatlik maosh'} value={formatRate(currentRate)} />
+                      <InfoRow label="Sotuv bonusi" value={salesLabel(emp) || "Yo'q"} />
                     </dl>
                     <div className="mt-3">
                       <SalaryVisibilityQuick emp={emp} onChanged={(v) => { setSelectedEmployee({ ...emp, show_salary: v }); load() }} />

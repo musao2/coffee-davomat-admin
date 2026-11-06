@@ -39,7 +39,7 @@ export default function SalaryBreakdown({ item, compact = false }) {
       <div className="divide-y divide-slate-100">
         <Row
           label="Ishlab topdi"
-          hint={compact ? null : `${item.worked_days || 0} kun ishladi`}
+          hint={compact ? null : `${item.worked_days || 0} kun ishladi${item.sales_bonus > 0 ? ` · shundan sotuvdan ${formatMoney(item.sales_bonus)}` : ''}`}
           value={earned}
           sign="+"
           tone="text-slate-900"
