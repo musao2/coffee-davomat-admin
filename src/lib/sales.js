@@ -115,3 +115,18 @@ export const salesLabel = (emp) => {
   if (emp?.sales_mode === 'per_item') return 'Sotuv: donasiga'
   return null
 }
+
+// Hisobot kalitlari: "xodimId|2026-11-11" → hisobot
+export const salesKey = (employeeId, day) => `${employeeId}|${day}`
+export const indexSalesReports = (rows) => Object.fromEntries((rows || []).map(r => [salesKey(r.employee_id, r.day), r]))
+export const sessionDay = (iso) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' })
+
+// Necha dona sotgani (donasiga turida)
+export const soldCount = (r) => (r?.items || []).reduce((t, i) => t + (Number(i.qty) || 0), 0)
+
+// Qisqa matn: "Kofe 12 ta, Choy 5 ta" yoki "2 500 000 so'mlik"
+export function salesText(r) {
+  if (!r) return ''
+  if (r.mode === 'percent') return `${Number(r.sales_total).toLocaleString('ru-RU').replace(/ |,/g, ' ')} so'mlik`
+  return (r.items || []).map(i => `${i.name} ${i.qty} ta`).join(', ') || "Hech narsa sotmagan"
+}

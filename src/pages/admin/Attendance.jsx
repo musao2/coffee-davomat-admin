@@ -11,6 +11,8 @@ import { useAuth } from '../../context/AuthContext'
 import * as XLSX from 'xlsx'
 import { useBranch } from '../../context/BranchContext'
 import { usePhotoUrls, PhotoCell, PhotoViewer } from '../../components/admin/AttendancePhotos'
+import SalesCell from '../../components/admin/SalesCell'
+import { getSalesReports, indexSalesReports, salesKey, sessionDay, salesText, soldCount } from '../../lib/sales'
 
 const STATUS_CONFIG = {
   open:      { label: 'Davom etmoqda', cls: 'badge-yellow' },
@@ -25,6 +27,7 @@ export default function AdminAttendance() {
   const [photo, setPhoto]           = useState(null)
   const [employees, setEmployees]   = useState([])
   const [loading, setLoading]       = useState(true)
+  const [salesByDay, setSalesByDay] = useState({}) // "xodim|kun" → sotuv hisoboti
   const [search, setSearch]         = useState('')
   const [empFilter, setEmpFilter]   = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -41,7 +44,7 @@ export default function AdminAttendance() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [sess, emps] = await Promise.all([
+      const [sess, emps, sales] = await Promise.all([
         attendanceFunctions.getAll({
           from:       dateFrom ? `${dateFrom}T00:00:00` : undefined,
           to:         dateTo   ? `${dateTo}T23:59:59` : undefined,
@@ -49,7 +52,9 @@ export default function AdminAttendance() {
           status:     statusFilter || undefined,
         }),
         employeeFunctions.getAll(),
+        getSalesReports(empFilter || null, dateFrom || '2000-01-01', dateTo || '2100-01-01').catch(() => []),
       ])
+      setSalesByDay(indexSalesReports(sales))
       setSessions(sess.filter(s => matchEmployee(s.employees)))
       setEmployees(emps.filter(matchEmployee))
     } catch (err) {
@@ -66,6 +71,16 @@ export default function AdminAttendance() {
     sess.employees?.full_name?.toLowerCase().includes(search.toLowerCase())
   )
   const photoUrls = usePhotoUrls(filtered)
+
+  // Sotuv: bir kunda bir necha marta kelib-ketgan bo'lsa — faqat bitta qatorda ko'rsatamiz
+  const salesEnabled = new Set(employees.filter(e => e.sales_mode).map(e => e.id))
+  const salesRowOf = {}
+  for (const sess of filtered) {
+    const k = salesKey(sess.employee_id, sessionDay(sess.check_in_at))
+    const r = salesByDay[k]
+    if (!(k in salesRowOf) || (r && r.session_id === sess.id)) salesRowOf[k] = sess.id
+  }
+  const hasSales = filtered.some(sess => salesEnabled.has(sess.employee_id) || salesByDay[salesKey(sess.employee_id, sessionDay(sess.check_in_at))])
 
   const openEdit = (sess) => {
     setEditSession(sess)
@@ -125,6 +140,15 @@ export default function AdminAttendance() {
       "Ketgan vaqti":   s.check_out_at ? formatTashkentDateTime(s.check_out_at) : '—',
       "Ishlangan vaqt": formatDuration(s.worked_seconds),
       "Ish haqi":    s.earned_amount || 0,
+      ...(() => {
+        const k = salesKey(s.employee_id, sessionDay(s.check_in_at))
+        const r = salesRowOf[k] === s.id ? salesByDay[k] : null
+        return hasSales ? {
+          "Sotdi":         r ? (r.mode === 'percent' ? salesText(r) : `${soldCount(r)} ta`) : '',
+          "Nima sotdi":    r && r.mode !== 'percent' ? salesText(r) : '',
+          "Sotuv bonusi":  r ? Number(r.bonus_amount) || 0 : '',
+        } : {}
+      })(),
       "Holat":       STATUS_CONFIG[s.status]?.label || s.status,
     }))
     const ws = XLSX.utils.json_to_sheet(rows)
@@ -246,6 +270,7 @@ export default function AdminAttendance() {
                 <th className="table-head">Ketdi</th>
                 <th className="table-head hidden md:table-cell">Ishlangan</th>
                 <th className="table-head hidden lg:table-cell">Ish haqi</th>
+                {hasSales && <th className="table-head">Sotdi</th>}
                 <th className="table-head">Holat</th>
                 <th className="table-head">Tuzatish</th>
               </tr>
@@ -275,6 +300,17 @@ export default function AdminAttendance() {
                     <td className="table-cell hidden lg:table-cell text-emerald-700 font-medium text-xs">
                       {formatMoney(sess.earned_amount)}
                     </td>
+                    {hasSales && (() => {
+                      const k = salesKey(sess.employee_id, sessionDay(sess.check_in_at))
+                      const mine = salesRowOf[k] === sess.id
+                      return (
+                        <td className="table-cell">
+                          {mine
+                            ? <SalesCell report={salesByDay[k]} expected={salesEnabled.has(sess.employee_id)} open={sess.status === 'open'} />
+                            : <span className="text-slate-300">—</span>}
+                        </td>
+                      )
+                    })()}
                     <td className="table-cell">
                       <div className="flex flex-col gap-0.5">
                         <span className={statusInfo.cls}>{statusInfo.label}</span>

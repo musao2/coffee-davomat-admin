@@ -4,7 +4,8 @@ import { LuArrowLeft, LuChevronLeft, LuChevronRight, LuReceipt, LuPencil } from 
 import { useAuth } from '../../context/AuthContext'
 import DayEditor from '../../components/admin/DayEditor'
 import SalesReportsCard from '../../components/admin/SalesReportsCard'
-import { getSalesReports } from '../../lib/sales'
+import { getSalesReports, soldCount } from '../../lib/sales'
+import SalesCell from '../../components/admin/SalesCell'
 import {
   supabase, employeeFunctions, attendanceFunctions, payrollFunctions,
   formatMoney,
@@ -101,6 +102,11 @@ export default function AdminPayrollEmployee() {
     }
     setReload(x => x + 1)
   }
+
+  // Kunlik sotuv: "2026-11-11" → hisobot
+  const salesOf = Object.fromEntries((data?.salesReports || []).map(r => [r.day, r]))
+  const showSales = !!data?.employee?.sales_mode || (data?.salesReports || []).length > 0
+  const soldTotal = (data?.salesReports || []).reduce((t, r) => t + soldCount(r), 0)
 
   const goMonth = (delta) => {
     const d = new Date(year, month - 1 + delta, 1)
@@ -237,6 +243,7 @@ export default function AdminPayrollEmployee() {
                     <th className="table-head">Ketdi</th>
                     <th className="table-head text-right">Ishladi</th>
                     <th className="table-head text-right">Topdi</th>
+                    {showSales && <th className="table-head">Sotdi</th>}
                     <th className="table-head">Holat</th>
                     <th className="table-head w-10" />
                   </tr>
@@ -268,6 +275,13 @@ export default function AdminPayrollEmployee() {
                         <td className="table-cell text-right tabular-nums font-medium">
                           {d.earned ? formatMoney(d.earned) : <span className="text-slate-300 font-normal">—</span>}
                         </td>
+                        {showSales && (
+                          <td className="table-cell">
+                            {d.list.length || salesOf[d.key]
+                              ? <SalesCell report={salesOf[d.key]} expected={!!emp?.sales_mode} open={d.status === 'open'} />
+                              : <span className="text-slate-300">—</span>}
+                          </td>
+                        )}
                         <td className="table-cell"><DayStatus d={d} /></td>
                         <td className="table-cell text-right">
                           {d.status !== 'future' && (
@@ -283,6 +297,12 @@ export default function AdminPayrollEmployee() {
                     <td className="table-cell font-semibold text-slate-900" colSpan={3}>Jami: {totals.days} kun</td>
                     <td className="table-cell text-right font-semibold text-slate-900 tabular-nums">{hoursText(totals.worked)}</td>
                     <td className="table-cell text-right font-semibold text-slate-900 tabular-nums">{formatMoney(totals.earned)}</td>
+                    {showSales && (
+                      <td className="table-cell font-semibold text-slate-900 tabular-nums">
+                        {data.employee?.sales_mode === 'percent' ? '' : `${soldTotal} ta`}
+                        <p className="text-xs text-green-700">+{formatMoney(data.salesReports.reduce((t, r) => t + (Number(r.bonus_amount) || 0), 0))}</p>
+                      </td>
+                    )}
                     <td className="table-cell" colSpan={2} />
                   </tr>
                 </tfoot>
